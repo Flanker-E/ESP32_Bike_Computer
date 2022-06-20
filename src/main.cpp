@@ -1,10 +1,11 @@
 // #include <lvgl.h>
 // #include "FS.h"
-// #include <lv_demos.h>
+#include <lv_demos.h>
 // #include <TFT_eSPI.h>
 #include "Port/Display.h"
 #include "HAL/HAL.h"
-#include "App/App.h"
+// #include "App/App.h"
+#include "PeakTrack/PeakTrack.h"
 // #include "TouchScreen.h"
 /*If you want to use the LVGL examples,
   make sure to install the lv_examples Arduino library
@@ -47,12 +48,13 @@ void setup()
        make sure to include it as written above.
     lv_example_btn_1();
    */
-    HAL::Init();
+    HAL::HAL_Init();
     Serial.println( "HAL Init" );
     Port_Init();
     Serial.println( "Port Init" );
     // uncomment one of these demos
-    // lv_demo_widgets();            // OK
+    lv_demo_widgets();            // OK
+
     // Serial.println( "Demo Init" );
     // lv_demo_benchmark();          // OK
     // lv_demo_keypad_encoder();     // works, but I haven't an encoder
@@ -69,14 +71,17 @@ void setup()
     //     configMAX_PRIORITIES - 1,
     //     // NULL);
     //     &handleTaskLvgl);
-    App_Init();
+    // App_Init();
+    // Peak_Track_init();
 
     Serial.println( "Setup done" );
+    xTaskNotifyGive(handleTaskLvgl);
 }
 
 void loop()
 {
-    // xTaskNotifyGive(handleTaskLvgl);
+  HAL::HAL_Update();
+    xTaskNotifyGive(handleTaskLvgl);
     // lv_timer_handler(); /* let the GUI do its work */
     // lv_tick_inc(5);
     delay( 20 );

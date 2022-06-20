@@ -2,14 +2,15 @@
 #define __DISPLAY_H
 
 #include <TFT_eSPI.h>
-#include "App/Configs/Config.h"
+// #include "App/Config/Config.h"
+#include "HAL/Config/Config.h"
 #include "lvgl.h"
 #include "FS.h"
 
 // #include "TFT_eSPI.h"
 typedef TFT_eSPI SCREEN_CLASS;
-static TFT_eSPI tft = TFT_eSPI(); /* TFT instance */
-static lv_indev_drv_t indev_drv;
+// TFT_eSPI tft = TFT_eSPI(); /* TFT instance */
+// static lv_indev_drv_t indev_drv;
 
 // static const uint16_t screenWidth  = 320;
 // static const uint16_t screenHeight = 240;
@@ -26,6 +27,10 @@ static lv_indev_drv_t indev_drv;
 
 #define REPEAT_CAL false
 // typedef TFT_eSPI SCREEN_CLASS;
+// lv_indev_t * indev_touchpad;
+// lv_indev_t* encoder_indev;
+extern lv_indev_t * indev_touchpad;
+extern lv_indev_t * encoder_indev;
 
 void Port_Init();
 void DisplayFault_Init(SCREEN_CLASS* scr);

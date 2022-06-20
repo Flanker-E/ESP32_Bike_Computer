@@ -1,43 +1,78 @@
-#include "HAL/HAL.h"
-#include "App/Configs/Version.h"
+#include "HAL.h"
 
-#define DISP_HOR_RES         CONFIG_SCREEN_HOR_RES
-#define DISP_VER_RES         CONFIG_SCREEN_VER_RES
-#define DISP_BUF_SIZE        CONFIG_SCREEN_BUFFER_SIZE
-extern lv_color_t* lv_disp_buf_p;
+static MillisTaskManager taskManager;
 
-void HAL:: Init()
+
+static void HAL_Update_Thread(void* argument)
 {
+    for (;;)
+    {
+        HAL::Power_Update();
+        HAL::Encoder_Update();
+        HAL::Audio_Update();
+        delay(30);
+    }
+}
+
+void HAL::HAL_Init()
+{
+    /* Print version */
     Serial.begin(115200);
-    Serial.println(VERSION_FIRMWARE_NAME);
-    Serial.println("Version: " VERSION_SOFTWARE);
-    Serial.println("Author: " VERSION_AUTHOR_NAME);
+    Serial.println("[Peak-Track]");
+    Serial.println("Version: " "1.0");
+    Serial.println("Author: " "Forairaaaaa");
 
-    // Move the malloc process to Init() to make sure that the largest heap can be used for this buffer.
-    // lv_disp_buf_p = static_cast<lv_color_t*>(malloc(DISP_BUF_SIZE * sizeof(lv_color_t)));
-    lv_disp_buf_p = (lv_color_t*)malloc(DISP_BUF_SIZE * sizeof(lv_color_t));
-    if (lv_disp_buf_p == nullptr)
-        LV_LOG_WARN("lv_port_disp_init malloc failed!\n");
+    /* Power init */
+    Power_Init();
 
-    // HAL::BT_Init(); // ToDo: some of the process below will interrupt BLE connection, find it out
-    // HAL::Power_Init();
-    // HAL::Backlight_Init();
-    // HAL::Encoder_Init();
-    // HAL::Buzz_init();
-    // HAL::Audio_Init();
-    // HAL::SD_Init();
-    // HAL::I2C_Init(true);
-    // HAL::IMU_Init();
+    /* Peripherals init */
+    Encoder_Init();
+    Serial.println("encoder");
+    // Buzz_init();
+    Serial.println("buzz");
+    // Audio_Init();
+    Serial.println("audio");
+    // GPS_Init();
+    
+    // Clock_Init();
+    // SD_Init();
+    // I2C_Scan();
+    // IMU_Init();
+    Serial.println("other peri");
+    printf("test");
+    /* LCD and Touch screen init */
+    // Backlight_Init();
+    // Display_Init();
+    Touch_Init();
+
+    /* Update tasks register */
+    // taskManager.Register(Power_EventMonitor, 100);
+    // taskManager.Register(GPS_Update, 200);
+    // taskManager.Register(IMU_Update, 1000);
+
+    /* Crete a higher level thread */
+    // xTaskCreate(
+    //     HAL_Update_Thread,
+    //     "HALupdate",
+    //     1024,
+    //     NULL,
+    //     2,
+    //     NULL);
 
     // HAL::Audio_PlayMusic("Startup");
 }
 
-void HAL::Update()
+void HAL::HAL_Update()
 {
-    HAL::Power_Update();
-    HAL::Encoder_Update();
-    HAL::Audio_Update();
-    HAL::IMU_Update();
-    HAL::BT_Update();
-    __IntervalExecute(HAL::SD_Update(), 500);
+    // /* Power ctrl update */
+    // Power_Update();
+    // Power_EventMonitor();
+    
+    // /* Peripherals update */
+    // Encoder_Update();
+    // Audio_Update();
+    // GPS_Update();
+    // IMU_Update();
+
+    // taskManager.Running(millis());
 }

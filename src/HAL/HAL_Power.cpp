@@ -1,30 +1,92 @@
-#include "HAL/HAL.h"
+#include "HAL.h"
 
-/*上一次操作时间(ms)*/
-static uint32_t Power_LastHandleTime = 0;
+// #define BATT_ADC                    ADC1
+#define BATT_MIN_VOLTAGE            3300
+#define BATT_MAX_VOLTAGE            4200
+#define BATT_FULL_CHARGE_VOLTAGE    4100
 
-/*自动关机时间(秒)*/
-static uint16_t Power_AutoLowPowerTimeout = 60;
+#define BATT_CHG_DET_PULLUP         1
+#if BATT_CHG_DET_PULLUP
+#  define BATT_CHG_DET_PIN_MODE     INPUT_PULLUP
+#  define BATT_CHG_DET_STATUS       (!digitalRead(CONFIG_BAT_CHG_DET_PIN))
+#else
+#  define BATT_CHG_DET_PIN_MODE     INPUT_PULLDOWN
+#  define BATT_CHG_DET_STATUS       ((usage == 100) ? false : digitalRead(CONFIG_BAT_CHG_DET_PIN))
+#endif
 
-/*自动关机功能使能*/
-static bool Power_AutoLowPowerEnable = false;
-
-static bool Power_IsShutdown = false;
-
-static volatile uint16_t Power_ADCValue = 0;
-static uint16_t Power_ADCValue_last[10] = {4095};
-
-static HAL::Power_CallbackFunction_t Power_EventCallback = NULL;
-
-#define BATT_MAX_VOLTAGE    3900
-#define BATT_MIN_VOLTAGE    3300
-
+struct
+{
+    uint32_t LastHandleTime;
+    uint16_t AutoLowPowerTimeout;
+    bool AutoLowPowerEnable;
+    bool ShutdownReq;
+    uint16_t ADCValue;
+    HAL::Power_CallbackFunction_t EventCallback;
+} Power;
 
 static void Power_ADC_Init()
 {
+    // RCC_APB2PeriphClockCmd(RCC_APB2PERIPH_ADC1, ENABLE);
+    // RCC_ADCCLKConfig(RCC_APB2CLK_Div8);
+
+    // ADC_Reset(ADCx);
+
+    // ADC_InitType ADC_InitStructure;
+    // ADC_StructInit(&ADC_InitStructure);
+    // ADC_InitStructure.ADC_Mode = ADC_Mode_Independent;
+    // ADC_InitStructure.ADC_ScanMode = DISABLE;
+    // ADC_InitStructure.ADC_ContinuousMode = DISABLE;
+    // ADC_InitStructure.ADC_ExternalTrig = ADC_ExternalTrig_None;
+    // ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
+    // ADC_InitStructure.ADC_NumOfChannel = 1;
+    // ADC_Init(ADCx, &ADC_InitStructure);
+
+    // ADC_ClearFlag(ADCx, ADC_FLAG_EC);
+
+    // ADC_Ctrl(ADCx, ENABLE);
+    // ADC_RstCalibration(ADCx);
+    // while(ADC_GetResetCalibrationStatus(ADCx));
+    // ADC_StartCalibration(ADCx);
+    // while(ADC_GetCalibrationStatus(ADCx));
+
     pinMode(CONFIG_BAT_DET_PIN, INPUT);
     pinMode(CONFIG_BAT_CHG_DET_PIN, INPUT_PULLUP);
 }
+
+// static uint16_t Power_ADC_GetValue()
+// {
+//     uint16_t retval = 0;
+//     if(ADC_GetFlagStatus(BATT_ADC, ADC_FLAG_EC))
+//     {
+//         retval = ADC_GetConversionValue(BATT_ADC);
+//     }
+//     return retval;
+// }
+
+static void Power_ADC_Update()
+{
+    // static bool isStartConv = false;
+
+    // if(!isStartConv)
+    // {
+    //     ADC_RegularChannelConfig(
+    //         BATT_ADC,
+    //         PIN_MAP[CONFIG_BAT_DET_PIN].ADC_Channel,
+    //         1,
+    //         ADC_SampleTime_41_5
+    //     );
+    //     ADC_SoftwareStartConvCtrl(BATT_ADC, ENABLE);
+    //     isStartConv = true;
+    // }
+    // else
+    // {
+    //     Power.ADCValue = Power_ADC_GetValue();
+    //     isStartConv = false;
+    // }
+
+    Power.ADCValue = analogRead(CONFIG_BAT_DET_PIN);
+}
+
 
 /**
   * @brief  电源初始化
@@ -33,19 +95,41 @@ static void Power_ADC_Init()
   */
 void HAL::Power_Init()
 {
+//     memset(&Power, 0, sizeof(Power));
+//     Power.AutoLowPowerTimeout = 60;
+
+//     Serial.printf("Power: Waiting[%dms]...\r\n", CONFIG_POWER_WAIT_TIME);
+//     pinMode(CONFIG_POWER_EN_PIN, OUTPUT);
+//     digitalWrite(CONFIG_POWER_EN_PIN, LOW);
+//     delay(CONFIG_POWER_WAIT_TIME);
+//     digitalWrite(CONFIG_POWER_EN_PIN, HIGH);
+//     Serial.println("Power: ON");
+
+//     Power_ADC_Init(BATT_ADC);
+//     pinMode(CONFIG_BAT_DET_PIN, INPUT_ANALOG);
+//     pinMode(CONFIG_BAT_CHG_DET_PIN, BATT_CHG_DET_PIN_MODE);
+
+// //    Power_SetAutoLowPowerTimeout(5 * 60);
+// //    Power_HandleTimeUpdate();
+//     Power_SetAutoLowPowerEnable(false);
+
+
     pinMode(CONFIG_BAT_CHG_DET_PIN, INPUT);
 
     /*电源使能保持*/
-    Serial.println("Power: Waiting...");
+    Serial.printf("Power: Waiting[%dms]...\r\n", CONFIG_POWER_WAIT_TIME);
     pinMode(CONFIG_POWER_EN_PIN, OUTPUT);
     digitalWrite(CONFIG_POWER_EN_PIN, LOW);
+
     // Try to connect to BLE device while waiting for boot
-    uint64_t time = millis();
-    while (millis() - time < 1000)
-    {
-        HAL::BT_Update();
-        delay(100);
-    }
+    // uint64_t time = millis();
+    // while (millis() - time < 1000)
+    // {
+    //     HAL::BT_Update();
+    //     delay(100);
+    // }
+
+    delay(CONFIG_POWER_WAIT_TIME);
     digitalWrite(CONFIG_POWER_EN_PIN, HIGH);
     Serial.println("Power: ON");
 
@@ -56,49 +140,24 @@ void HAL::Power_Init()
     Power_SetAutoLowPowerEnable(false);
 }
 
-static void Power_ADC_TrigUpdate()
-{
-    Power_ADCValue = analogRead(CONFIG_BAT_DET_PIN);
-}
-
-/**
-  * @brief  更新操作时间
-  * @param  无
-  * @retval 无
-  */
 void HAL::Power_HandleTimeUpdate()
 {
-    Power_LastHandleTime = millis();
+    Power.LastHandleTime = millis();
 }
 
-/**
-  * @brief  设置自动关机时间
-  * @param  sec:时间(秒)
-  * @retval 无
-  */
 void HAL::Power_SetAutoLowPowerTimeout(uint16_t sec)
 {
-    Power_AutoLowPowerTimeout = sec;
+    Power.AutoLowPowerTimeout = sec;
 }
 
-/**
-  * @brief  获取自动关机时间
-  * @param  无
-  * @retval sec:时间(秒)
-  */
 uint16_t HAL::Power_GetAutoLowPowerTimeout()
 {
-    return Power_AutoLowPowerTimeout;
+    return Power.AutoLowPowerTimeout;
 }
 
-/**
-  * @brief  设置自动关机功能使能
-  * @param  en:使能
-  * @retval 无
-  */
 void HAL::Power_SetAutoLowPowerEnable(bool en)
 {
-    Power_AutoLowPowerEnable = en;
+    Power.AutoLowPowerEnable = en;
     Power_HandleTimeUpdate();
 }
 
@@ -109,59 +168,67 @@ void HAL::Power_SetAutoLowPowerEnable(bool en)
   */
 void HAL::Power_Shutdown()
 {
-    Backlight_SetGradual(0, 500);
-    digitalWrite(CONFIG_POWER_EN_PIN, LOW);
-    Power_IsShutdown = true;
+    CM_EXECUTE_ONCE(Power.ShutdownReq = true);
 }
 
-/**
-  * @brief  自动关机监控
-  * @param  无
-  * @retval 无
-  */
 void HAL::Power_Update()
 {
-    __IntervalExecute(Power_ADC_TrigUpdate(), 1000);
+    CM_EXECUTE_INTERVAL(Power_ADC_Update(), 1000);
 
-    if (!Power_AutoLowPowerEnable)
+    if(!Power.AutoLowPowerEnable)
         return;
 
-    if (Power_AutoLowPowerTimeout == 0)
+    if(Power.AutoLowPowerTimeout == 0)
         return;
 
-    if (millis() - Power_LastHandleTime >= (Power_AutoLowPowerTimeout * 1000))
+    if(millis() - Power.LastHandleTime >= (Power.AutoLowPowerTimeout * 1000))
     {
         Power_Shutdown();
     }
 }
 
+void HAL::Power_EventMonitor()
+{
+    if(Power.ShutdownReq)
+    {
+        if(Power.EventCallback)
+        {
+            Power.EventCallback();
+        }
+        HAL::Audio_PlayMusic("Shutdown");
+        Backlight_SetGradual(0, 500);
+        digitalWrite(CONFIG_POWER_EN_PIN, LOW);
+        Serial.println("Power: OFF");
+        Power.ShutdownReq = false;
+    }
+}
+
 void HAL::Power_GetInfo(Power_Info_t* info)
 {
-    uint32_t sum = Power_ADCValue;
-    for (int i = 9; i > 0; i--)
-    {
-        Power_ADCValue_last[i] = Power_ADCValue_last[i - 1];
-        sum += Power_ADCValue_last[i - 1];
-    }
-    Power_ADCValue_last[0] = Power_ADCValue;
-
     int voltage = map(
-        sum / 10,
-        0, 4095,
-        0, 3300
-    );
+                      Power.ADCValue,
+                      0, 4095,
+                      0, 3300
+                  );
 
     voltage *= 2;
 
-    __LimitValue(voltage, BATT_MIN_VOLTAGE, BATT_MAX_VOLTAGE);
+    CM_VALUE_LIMIT(voltage, BATT_MIN_VOLTAGE, BATT_MAX_VOLTAGE);
 
     int usage = map(
-        voltage,
-        BATT_MIN_VOLTAGE, BATT_MAX_VOLTAGE,
-        0, 100
-    );
+                    voltage,
+                    BATT_MIN_VOLTAGE, BATT_FULL_CHARGE_VOLTAGE,
+                    0, 100
+                );
+
+    CM_VALUE_LIMIT(usage, 0, 100);
 
     info->usage = usage;
-    info->isCharging = usage != 100 && !digitalRead(CONFIG_BAT_CHG_DET_PIN);
+    info->isCharging = BATT_CHG_DET_STATUS;
     info->voltage = voltage;
+}
+
+void HAL::Power_SetEventCallback(Power_CallbackFunction_t callback)
+{
+    Power.EventCallback = callback;
 }

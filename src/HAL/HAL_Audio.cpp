@@ -1,24 +1,21 @@
-#include "HAL/HAL.h"
-#include "App/Utils/TonePlayer/TonePlayer.h"
-#include "lvgl.h"
+#include "HAL.h"
+#include "TonePlayer.h"
 
 static TonePlayer player;
 
-#include "App/Utils/TonePlayer/MusicCode.h"
-
-static void Tone_Callback(uint32_t freq, uint16_t volume)
-{
-    HAL::Buzz_Tone(freq);
-}
+#include "MusicCode.h"
 
 void HAL::Audio_Init()
 {
-    player.SetCallback(Tone_Callback);
+    player.SetCallback([](uint32_t freq, uint16_t volume)
+    {
+        HAL::Buzz_Tone(freq);
+    });
 }
 
 void HAL::Audio_Update()
 {
-    player.Update(lv_tick_get());
+    player.Update(millis());
 }
 
 bool HAL::Audio_PlayMusic(const char* name)
